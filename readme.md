@@ -1,3 +1,5 @@
+= Anotações =
+
 Implementar aplicação simples pro trabalho de SD:
 - Aplicação da opção de cliente/servidor e grupo.
 - Servidores iniciam o grupo.
