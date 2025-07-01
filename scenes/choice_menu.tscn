@@ -1,0 +1,95 @@
+[gd_scene load_steps=2 format=3 uid="uid://c8n0trray7j4l"]
+
+[ext_resource type="Script" uid="uid://5o628lph8tcj" path="res://scenes/choice_menu.gd" id="1_rjk36"]
+
+[node name="ChoiceMenu" type="Control" node_paths=PackedStringArray("validate_button_ndi", "dsnode_type_button_ndi", "interface_button_ndi", "egroup_form_ndi", "rgroup_form_ndi", "log_ndi")]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+size_flags_vertical = 3
+script = ExtResource("1_rjk36")
+validate_button_ndi = NodePath("VBoxContainer/Button")
+dsnode_type_button_ndi = NodePath("VBoxContainer/OptionButton")
+interface_button_ndi = NodePath("VBoxContainer/InterfaceButton")
+egroup_form_ndi = NodePath("VBoxContainer/EmissorIPForm")
+rgroup_form_ndi = NodePath("VBoxContainer/ReceptorIPForm")
+log_ndi = NodePath("VBoxContainer/Control/Log")
+
+[node name="VBoxContainer" type="VBoxContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="OptionButton" type="OptionButton" parent="VBoxContainer"]
+custom_minimum_size = Vector2(0, 80)
+layout_mode = 2
+size_flags_vertical = 3
+item_count = 2
+popup/item_0/text = "Emissor"
+popup/item_0/id = 0
+popup/item_1/text = "Receptor"
+popup/item_1/id = 1
+
+[node name="InterfaceButton" type="OptionButton" parent="VBoxContainer"]
+custom_minimum_size = Vector2(0, 80)
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="EmissorIPForm" type="TextEdit" parent="VBoxContainer"]
+custom_minimum_size = Vector2(240, 100)
+layout_mode = 2
+size_flags_vertical = 3
+text = "239.255.0.1"
+placeholder_text = "IP do Grupo Emissor"
+context_menu_enabled = false
+emoji_menu_enabled = false
+wrap_mode = 1
+
+[node name="ReceptorIPForm" type="TextEdit" parent="VBoxContainer"]
+custom_minimum_size = Vector2(240, 100)
+layout_mode = 2
+size_flags_vertical = 3
+text = "239.255.0.2"
+placeholder_text = "IP do Grupo Receptor"
+context_menu_enabled = false
+emoji_menu_enabled = false
+wrap_mode = 1
+
+[node name="Button" type="Button" parent="VBoxContainer"]
+custom_minimum_size = Vector2(300, 100)
+layout_mode = 2
+size_flags_vertical = 3
+text = "Iniciar"
+
+[node name="Control" type="Control" parent="VBoxContainer"]
+custom_minimum_size = Vector2(0, 120)
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="Log" type="RichTextLabel" parent="VBoxContainer/Control"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+fit_content = true
+tab_size = 2
+
+[node name="ColorRect" type="ColorRect" parent="VBoxContainer/Control/Log"]
+show_behind_parent = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0, 0, 0, 1)
+
+[connection signal="button_down" from="VBoxContainer/Button" to="." method="_on_button_button_down"]

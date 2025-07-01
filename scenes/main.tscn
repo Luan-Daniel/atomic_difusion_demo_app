@@ -1,0 +1,18 @@
+[gd_scene load_steps=5 format=3 uid="uid://3ooao1sp77l8"]
+
+[ext_resource type="PackedScene" uid="uid://c8n0trray7j4l" path="res://scenes/choice_menu.tscn" id="1_41ekw"]
+[ext_resource type="Script" uid="uid://chkf5fav4wowq" path="res://scenes/main.gd" id="1_jmhsh"]
+[ext_resource type="PackedScene" uid="uid://bpdpvp5ri1ud3" path="res://scenes/receptor.tscn" id="3_jyhfs"]
+[ext_resource type="PackedScene" uid="uid://d2n7wlxlc86o7" path="res://scenes/emissor.tscn" id="4_tbgi4"]
+
+[node name="Main" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_jmhsh")
+config_menu_pscn = ExtResource("1_41ekw")
+receptor_pscn = ExtResource("3_jyhfs")
+emissor_pscn = ExtResource("4_tbgi4")
