@@ -42,7 +42,7 @@ func start_ds_emissor() -> void:
 	dsnode_ndi = emissor_pscn.instantiate()
 	dsnode_ndi.egroup_ip = egroup_ip
 	dsnode_ndi.rgroup_ip = rgroup_ip
-	dsnode_ndi.network_interface = network_interface
+	dsnode_ndi.interface = network_interface
 	add_child(dsnode_ndi)
 
 func start_ds_receptor() -> void:
