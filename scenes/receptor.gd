@@ -36,9 +36,9 @@ func _process(_delta):
 	pass
 
 var message_count :int=0
-func _on_message_received(message: PackedByteArray, sender_ip: String)->void:
+func _on_message_received(message: PackedByteArray, sender_ip: String, port :int)->void:
 	message_count+=1
-	log_ndi.text += "[m] {}> `{}`\n".format([sender_ip, message.get_string_from_utf8()], "{}")
+	log_ndi.text += "[{}:[]] `{}`\n".format([sender_ip, port, message.get_string_from_utf8()], "{}")
 
 
 func _on_ping_button_button_down():

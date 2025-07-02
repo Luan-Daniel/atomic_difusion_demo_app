@@ -1,7 +1,7 @@
 extends Node
 class_name MulticastGroup
 
-signal message_received(message: PackedByteArray, sender_ip: String)
+signal message_received(message: PackedByteArray, sender_ip: String, port :int)
 
 var group_ip: String
 var port: int
@@ -73,7 +73,7 @@ func _process(_delta: float) -> void:
 				if not is_loopback:
 					send_message("CTRL:PONG".to_utf8_buffer(), ip, prt)
 		if not is_loopback:
-			message_received.emit(packet, ip)
+			message_received.emit(packet, ip, prt)
 	return
 
 static func is_valid_ipv4_address(ip: String) -> bool:
