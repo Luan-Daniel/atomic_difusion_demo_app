@@ -1,6 +1,7 @@
 extends Control
 
 @export var log_ndi :RichTextLabel = null
+@export var grid_ndi :Control = null
 var group_mngr :MulticastGroup = null
 
 # espera receber esses valores da main
@@ -38,7 +39,23 @@ func _process(_delta):
 var message_count :int=0
 func _on_message_received(message: PackedByteArray, sender_ip: String, port :int)->void:
 	message_count+=1
-	log_ndi.text += "[{}:[]] `{}`\n".format([sender_ip, port, message.get_string_from_utf8()], "{}")
+	var msg := message.get_string_from_utf8()
+	log_ndi.text += "[{}:{}] `{}`\n".format([sender_ip, port, msg], "{}")
+	
+	var json := JSON.new()
+	var parse_result := json.parse(msg)
+	if parse_result != OK: return
+	var data = json.get_data()
+	if typeof(data) == TYPE_DICTIONARY and data.has_all(["pos", "rgb"]):
+		var pos = data["pos"]
+		var rgb = data["rgb"]
+		var color := Color(
+			int(rgb[0]) /255.0,
+			int(rgb[1]) /255.0,
+			int(rgb[2]) /255.0
+		)
+		grid_ndi.change_rect(pos, color)
+		return
 
 
 func _on_ping_button_button_down():

@@ -1,8 +1,9 @@
-[gd_scene load_steps=2 format=3 uid="uid://bpdpvp5ri1ud3"]
+[gd_scene load_steps=3 format=3 uid="uid://bpdpvp5ri1ud3"]
 
 [ext_resource type="Script" uid="uid://csgo256fsijse" path="res://scenes/receptor.gd" id="1_vvfsj"]
+[ext_resource type="PackedScene" uid="uid://bcyvafxx3071m" path="res://scenes/grid.tscn" id="2_l11p2"]
 
-[node name="Receptor" type="Control" node_paths=PackedStringArray("log_ndi")]
+[node name="Receptor" type="Control" node_paths=PackedStringArray("log_ndi", "grid_ndi")]
 layout_mode = 3
 anchors_preset = 15
 anchor_right = 1.0
@@ -11,6 +12,7 @@ grow_horizontal = 2
 grow_vertical = 2
 script = ExtResource("1_vvfsj")
 log_ndi = NodePath("VBoxContainer/Log")
+grid_ndi = NodePath("VBoxContainer/Grid")
 
 [node name="VBoxContainer" type="VBoxContainer" parent="."]
 layout_mode = 1
@@ -19,6 +21,9 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
+
+[node name="Grid" parent="VBoxContainer" instance=ExtResource("2_l11p2")]
+layout_mode = 2
 
 [node name="HSeparator" type="HSeparator" parent="VBoxContainer"]
 custom_minimum_size = Vector2(0, 24)
