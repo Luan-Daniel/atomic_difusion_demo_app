@@ -32,7 +32,7 @@ var PORT        :int= 9321
 var global_seq    :int = 0   # contador global do token
 var have_token    :bool= false
 var last_token_ts :int= 0
-var pending_msgs  :Array[String]= []
+var pending_msgs  :Array[Array]= []
 var token_id      :int= 0
 var pending_token_id    :int    = -1
 var pending_successor   :String = ""
@@ -307,7 +307,8 @@ func _deliver_pending()->void:
 		global_seq += 1
 		var msg_packet = {
 			"seq": global_seq,
-			"payload": msg
+			"payload": msg[1],
+			"ts": msg[0]
 		}
 		var json_buf = JSON.stringify(msg_packet).to_utf8_buffer()
 		group_mngr.send_message(json_buf, rgroup_ip, PORT)
@@ -378,7 +379,7 @@ func set_random_msg()->void:
 	var color := Color(msg.rgb[0]/255.0, msg.rgb[1]/255.0, msg.rgb[2]/255.0)
 	color_ndi.set_color(color)
 	pos_ndi.set_text(JSON.stringify(msg, "  "))
-	pending_msgs.append(JSON.stringify(msg))
+	pending_msgs.append([get_unix_time_in_ms(), JSON.stringify(msg)])
 
 func update_status()->void:
 	var n_members := members.size()

@@ -71,9 +71,10 @@ func _on_message_received(message: PackedByteArray, sender_ip: String, port :int
 	var parse_result := json.parse(msg)
 	if parse_result != OK: return
 	var data = json.get_data()
-	if typeof(data) == TYPE_DICTIONARY and data.has_all(["seq", "payload"]):
-		var seq     :int= data["seq"]
+	if typeof(data) == TYPE_DICTIONARY and data.has_all(["seq", "payload", "ts"]):
+		var seq     :int= data["seq"] # sequencia global de envio de mensagems
 		var payload :Variant= data["payload"]
+		var ts      :int= data["ts"]  # timestamp da criação da mensagem
 		
 		if seq == next_expected_seq:
 			handle_payload(payload)
@@ -85,7 +86,8 @@ func _on_message_received(message: PackedByteArray, sender_ip: String, port :int
 				next_expected_seq += 1
 		elif seq > next_expected_seq:
 			holdback_buffer[seq] = payload
-		# se seq < next_expected_seq: duplicata ou atrasada, ignora
+		else:
+			log_line("[w] Mensagem duplicata ou atrasada.")
 
 func handle_payload(payload: Variant)->void:
 	var msg := payload as String
