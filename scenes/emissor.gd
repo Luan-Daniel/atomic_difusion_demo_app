@@ -1,6 +1,6 @@
 extends Control
 
-var DEBUG:=false
+const DEBUG:=false
 
 #region Nós e Estados Principais
 @export var log_ndi :RichTextLabel = null
@@ -21,7 +21,7 @@ var rgroup_ip :String # Ip do grupo receptor
 var interface :Dictionary = {"name":"", "friendly":"", "index":-1, "addresses":[]}
 
 # Identidade e membership
-var node_id :String= str(get_unix_time_in_ms() + randi())
+var node_id     := ""
 var members     := {} # { node_id: {ip, port}, ... }
 var predecessor := {} # { node_id, ip, port }
 var successor   := {}
@@ -29,9 +29,10 @@ var my_ip       := ""
 var PORT        :int= 9321
 
 # Token e filas
+var global_seq    :int = 0   # contador global do token
 var have_token    :bool= false
 var last_token_ts :int= 0
-var pending_msgs  :Array[PackedByteArray]= []
+var pending_msgs  :Array[String]= []
 var token_id      :int= 0
 var token_retries := 0
 var pending_token_to_send := {}   # { token_id, ip, port }
@@ -45,7 +46,8 @@ const TOKEN_TIMEOUT      := 5.0
 
 #region Setup inicial e JOIN
 func _ready():
-	# 0) Encontra meu IPv4 (Não muito bom)
+	# 0) Gera node_id e encontra meu IPv4 (Não muito bom)
+	_load_or_generate_node_id()
 	for addr in interface.addresses:
 		if addr.count(".") == 3: my_ip = addr
 	if my_ip.is_empty(): my_ip = interface.addresses[-1]
@@ -81,6 +83,22 @@ func _ready():
 	
 	# 3) Anunciar entrada
 	_send_control("JOIN_REQ", { "node_id":node_id, "port":PORT })
+
+func _load_or_generate_node_id() -> void:
+	var node_id_file := OS.get_user_data_dir().path_join("node_id.cfg")
+	if FileAccess.file_exists(node_id_file):
+		var file = FileAccess.open(node_id_file, FileAccess.READ)
+		if file:
+			node_id = file.get_line().strip_edges()
+			log_line("[i] Carregado node_id de disco: %s" % node_id)
+		file.close()
+	else:
+		node_id = str(get_unix_time_in_ms() + randi())
+		var file = FileAccess.open(node_id_file, FileAccess.WRITE)
+		if file:
+			file.store_line(node_id)
+			log_line("[i] Gerado novo node_id e salvo: %s" % node_id)
+		file.close()
 #endregion
 
 #region Envio e Recepção de Controle
@@ -149,7 +167,6 @@ func _on_message_received(packet: PackedByteArray, sender_ip: String, port :int)
 		CtrlType.PING:
 			log_line("[debug] _on_message_received: Heartbeat no anel.", true)
 			_send_control("PONG", {"node_id":node_id}, sender_ip, body.port)
-
 		CtrlType.PONG:
 			log_line("[debug] _on_message_received: PONG.", true)
 			# quem respondeu está vivo
@@ -157,20 +174,26 @@ func _on_message_received(packet: PackedByteArray, sender_ip: String, port :int)
 
 		# 5) Chegou token
 		CtrlType.TOKEN:
+			# 5.1) Marcar posse
 			log_line("[debug] _on_message_received: Chegou token.", true)
 			have_token = true
 			last_token_ts = get_unix_time_in_ms()
 			token_timeout_timer.start()
-			# 5.1) Envia confirmação ao remetente
+			global_seq = body.sequence
+			
+			# 5.2) Envia confirmação ao remetente
 			var ack_body = { "token_id": body.token_id, "from_id": node_id }
 			_send_control("TOKEN_ACK", ack_body, sender_ip, port)
-			# 5.2) Processa entrega
+			# 5.3) Processa entrega
 			_deliver_pending()
 		CtrlType.TOKEN_ACK:
 			# quem passou token recebeu a confirmação
-			if body.token_id == pending_token_to_send.token_id:
-				token_ack_timer.stop()
-				pending_token_to_send.clear()
+			if pending_token_to_send.has("token_id"):
+				if body.token_id == pending_token_to_send.token_id:
+					token_ack_timer.stop()
+					pending_token_to_send.clear()
+			else:
+				log_line("[warn] TOKEN_ACK recebido, mas sem token pendente para confirmar.")
 #endregion
 
 #region Heartbeat & Detecção de Falhas
@@ -255,13 +278,17 @@ func _init_token()->void:
 	token_id += 1
 
 func _send_token(data:Dictionary)->void:
-	var body = { "token_id": data.token_id }
+	var body = {
+		"token_id": data.token_id,
+		"sequence": data.global_seq
+		}
 	_send_control("TOKEN", body, data.ip, data.port)
 	token_ack_timer.start()
 
 func _pass_token()->void:
 	pending_token_to_send = {
 		"token_id": token_id,
+		"global_seq": global_seq,
 		"ip": successor.ip,
 		"port": successor.port
 	}
@@ -269,24 +296,21 @@ func _pass_token()->void:
 	_send_token(pending_token_to_send)
 	have_token = false
 
+# Entrega mensagens na fila.
 func _deliver_pending()->void:
-	# cria mensagem aleatoria
-	var msg := {
-	"pos": randi_range(0, 11),
-	"rgb": [
-		randi_range(0, 255),
-		randi_range(0, 255),
-		randi_range(0, 255)]
-	}
-	var color := Color(msg.rgb[0]/255.0, msg.rgb[1]/255.0, msg.rgb[2]/255.0)
-	color_ndi.set_color(color)
-	pos_ndi.set_text(JSON.stringify(msg, "  "))
-	pending_msgs.append(JSON.stringify(msg).to_utf8_buffer())
+	# Atualmente cria mensagem aleatoria e coloca na fila.
+	set_random_msg()
 	
 	log_line("[debug] _deliver_pending", true)
-	# envia todas as mensagens ao grupo receptor
-	for buf in pending_msgs:
-		group_mngr.send_message(buf, rgroup_ip, PORT)
+	# Envia todas as mensagens ao grupo receptor
+	for msg in pending_msgs:
+		global_seq += 1
+		var msg_packet = {
+			"seq": global_seq,
+			"payload": msg
+		}
+		var json_buf = JSON.stringify(msg_packet).to_utf8_buffer()
+		group_mngr.send_message(json_buf, rgroup_ip, PORT)
 	pending_msgs.clear()
 	_pass_token()
 
@@ -320,12 +344,28 @@ func log_line(line:String, is_debug:bool=false)->void:
 	line += "\n"
 	log_ndi.text += line
 
+func set_random_msg()->void:
+	var msg := {
+	"pos": randi_range(0, 11),
+	"rgb": [
+		randi_range(0, 255),
+		randi_range(0, 255),
+		randi_range(0, 255)]
+	}
+	var color := Color(msg.rgb[0]/255.0, msg.rgb[1]/255.0, msg.rgb[2]/255.0)
+	color_ndi.set_color(color)
+	pos_ndi.set_text(JSON.stringify(msg, "  "))
+	pending_msgs.append(JSON.stringify(msg))
+
 func update_status()->void:
 	var n_members := members.size()
 	var is_coordinator := _get_coordinator_id()==node_id
 	status_ndi.set_text(
-	"IS_COORDINATOR: {}\nNODE ID: {}\nIP: {}\nNUMBER OF MEMBERS: {}\nMEMBERS: {}\nSUCCESSOR: {}\nPREDECESSOR: {}\nHAS_TOKEN: {}\n LAST_TOKEN_TS: {}"
-	.format([is_coordinator, node_id, my_ip, n_members, members, successor, predecessor, have_token, last_token_ts], "{}"))
+	"IS_COORDINATOR: {}\nNODE ID: {}\nIP: {}\nNUMBER OF MEMBERS: {}\nMEMBERS: {}\nSUCCESSOR: {}\nPREDECESSOR: {}\nHAS_TOKEN: {}\n LAST TOKEN TS: {}\n GLOBAL SEQUENCE: {}\n PENDING MESSAGES: {}"
+	.format([is_coordinator, node_id, my_ip, n_members, members, successor, predecessor, have_token, last_token_ts, global_seq, pending_msgs.size()], "{}"))
 
 func _process(_delta):
 	update_status()
+
+func _on_push_message_button_down():
+	set_random_msg()
