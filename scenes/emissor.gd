@@ -40,7 +40,7 @@ var token_retries       :int    = 0
 
 const TOKEN_ACK_TIMEOUT  := 1.0
 const TOKEN_MAX_RETRIES  := 3
-const HEARTBEAT_INTERVAL := 1.0
+const HEARTBEAT_INTERVAL := 0.5
 const PING_TIMEOUT       := 0.5
 const TOKEN_TIMEOUT      := 5.0
 #endregion
@@ -194,6 +194,7 @@ func _on_message_received(packet: PackedByteArray, sender_ip: String, port :int)
 #region Heartbeat & Detecção de Falhas
 # Envia PING para successor
 func _on_heartbeat()->void:
+	set_random_msg() # DEBUG
 	if members.size()==1 && have_token:
 		_deliver_pending()
 	if successor.has("ip") && not members.is_empty():
@@ -308,9 +309,6 @@ func _pass_token()->void:
 
 # Entrega mensagens na fila.
 func _deliver_pending()->void:
-	# Atualmente cria mensagem aleatoria e coloca na fila.
-	set_random_msg()
-	
 	log_line("[debug] _deliver_pending", true)
 	# Envia todas as mensagens ao grupo receptor
 	for msg in pending_msgs:
