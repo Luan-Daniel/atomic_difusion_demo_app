@@ -284,14 +284,6 @@ func _send_token_to(ip:String, port:int, t_id:int, sequence:int) -> void:
 	var buf = JSON.stringify({"type":"TOKEN", "body":body }).to_utf8_buffer()
 	group_mngr.send_message(buf, ip, port)
 
-func _send_token(data:Dictionary)->void:
-	var body = {
-		"token_id": data.token_id,
-		"sequence": data.global_seq
-		}
-	_send_control("TOKEN", body, data.ip, data.port)
-	token_ack_timer.start()
-
 func _pass_token()->void:
 	if members.size() == 1:
 		log_line("[debug] Único nó no anel: permanecendo com o token.", true)
@@ -319,7 +311,6 @@ func _deliver_pending()->void:
 		}
 		var json_buf = JSON.stringify(msg_packet).to_utf8_buffer()
 		group_mngr.send_message(json_buf, rgroup_ip, PORT)
-		await get_tree().create_timer(0.2).timeout # DEBUG delay
 	pending_msgs.clear()
 	_pass_token()
 
