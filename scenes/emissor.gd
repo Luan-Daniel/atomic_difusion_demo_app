@@ -34,8 +34,9 @@ var have_token    :bool= false
 var last_token_ts :int= 0
 var pending_msgs  :Array[String]= []
 var token_id      :int= 0
-var token_retries := 0
-var pending_token_to_send := {}   # { token_id, ip, port }
+var pending_token_id    :int    = -1
+var pending_successor   :String = ""
+var token_retries       :int    = 0
 
 const TOKEN_ACK_TIMEOUT  := 1.0
 const TOKEN_MAX_RETRIES  := 3
@@ -187,18 +188,14 @@ func _on_message_received(packet: PackedByteArray, sender_ip: String, port :int)
 			# 5.3) Processa entrega
 			_deliver_pending()
 		CtrlType.TOKEN_ACK:
-			# quem passou token recebeu a confirmação
-			if pending_token_to_send.has("token_id"):
-				if body.token_id == pending_token_to_send.token_id:
-					token_ack_timer.stop()
-					pending_token_to_send.clear()
-			else:
-				log_line("[warn] TOKEN_ACK recebido, mas sem token pendente para confirmar.")
+			_on_token_ack(body)
 #endregion
 
 #region Heartbeat & Detecção de Falhas
 # Envia PING para successor
 func _on_heartbeat()->void:
+	if members.size()==1 && have_token:
+		_deliver_pending()
 	if successor.has("ip") && not members.is_empty():
 		if successor['node_id'] == node_id: return
 		if not members.has(successor.node_id): return
@@ -277,6 +274,15 @@ func _init_token()->void:
 	# carregue ou incremente um token_id global
 	token_id += 1
 
+func _send_token_to(ip:String, port:int, t_id:int, sequence:int) -> void:
+	var body = {
+		"token_id": t_id,
+		"sequence": sequence,
+		"from_id": node_id
+	}
+	var buf = JSON.stringify({"type":"TOKEN", "body":body }).to_utf8_buffer()
+	group_mngr.send_message(buf, ip, port)
+
 func _send_token(data:Dictionary)->void:
 	var body = {
 		"token_id": data.token_id,
@@ -286,14 +292,18 @@ func _send_token(data:Dictionary)->void:
 	token_ack_timer.start()
 
 func _pass_token()->void:
-	pending_token_to_send = {
-		"token_id": token_id,
-		"global_seq": global_seq,
-		"ip": successor.ip,
-		"port": successor.port
-	}
-	token_retries = 0
-	_send_token(pending_token_to_send)
+	if members.size() == 1:
+		log_line("[debug] Único nó no anel: permanecendo com o token.", true)
+		have_token        = true
+		last_token_ts     = get_unix_time_in_ms()
+		token_timeout_timer.start()
+		return
+
+	pending_token_id  = token_id
+	pending_successor = successor.node_id
+	token_retries     = 0
+	_send_token_to(successor.ip, successor.port, token_id, global_seq)
+	token_ack_timer.start()
 	have_token = false
 
 # Entrega mensagens na fila.
@@ -311,26 +321,50 @@ func _deliver_pending()->void:
 		}
 		var json_buf = JSON.stringify(msg_packet).to_utf8_buffer()
 		group_mngr.send_message(json_buf, rgroup_ip, PORT)
+		await get_tree().create_timer(0.2).timeout # DEBUG delay
 	pending_msgs.clear()
 	_pass_token()
 
+func _on_token_ack(body:Dictionary) -> void:
+	# Ignora ACKs antigos ou de nós diferentes
+	if body.token_id != pending_token_id:
+		return
+	if body.from_id != pending_successor:
+		return
+
+	token_ack_timer.stop()
+	pending_token_id  = -1
+	pending_successor = ""
+
 func _on_token_ack_timeout():
+	if members.size()==1:
+		log_line("[debug] Único nó no anel: cancelando timeout de token.", true)
+		token_ack_timer.stop()
+		pending_token_id  = -1
+		pending_successor = ""
+		have_token        = true
+		last_token_ts     = get_unix_time_in_ms()
+		token_timeout_timer.start()
+		return
+	
+	if pending_token_id < 0: return
 	# falha na confirmação
 	if token_retries < TOKEN_MAX_RETRIES:
 		token_retries += 1
-		log_line("[debug] Retransmitindo token (tentativa %d)".format([token_retries]), true)
-		_send_token(pending_token_to_send)
+		log_line("[!] Retransmitindo token %d (tentativa %d)"%[pending_token_id, token_retries])
+		_send_token_to(successor.ip, successor.port, pending_token_id, global_seq)
+		token_ack_timer.start()
 	else:
-		log_line("[debug] Sucessor falho detectado. Atualizando anel.", true)
-		# Suspeita de falha do successor
-		members.erase(successor.node_id)
+		log_line("[!] Sucessor %s falhou. Reconstruindo anel."%pending_successor)
+		# Remove o nó suspeito e atualiza anel
+		members.erase(pending_successor)
 		_broadcast_membership()
-		# Repassa token ao novo successor
 		_rebuild_ring()
-		pending_token_to_send.clear()
-		# o nó atual ainda detém o token
-		have_token = true
-		last_token_ts = get_unix_time_in_ms()
+		# Ainda temos o token, zera pendente e entrega mensagens
+		pending_token_id  = -1
+		pending_successor = ""
+		have_token        = true
+		last_token_ts     = get_unix_time_in_ms()
 		token_timeout_timer.start()
 		_deliver_pending()
 #endregion
